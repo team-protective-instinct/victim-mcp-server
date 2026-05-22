@@ -9,6 +9,7 @@ services:
       - PROXY_PRESERVE_HOST=on
       - MODSEC_RULE_ENGINE=DetectionOnly
       - MODSEC_AUDIT_ENGINE=On
+      - MODSEC_AUDIT_LOG_TYPE=Serial
       - MODSEC_AUDIT_LOG=/var/log/modsecurity/audit.log
     volumes:
       - waf-logs:/var/log/modsecurity # 네임드 볼륨 사용
