@@ -1,7 +1,7 @@
 # 🛡️ 통합 공격 시나리오 명세서
 
 > **목적**: DVWA 침투 이후 실제 공격자가 수행하는 후속 공격(Post-Exploitation)까지 연결한 현실적 공격 시뮬레이션  
-> **실행 방법**: `python main.py -s [시나리오번호]`  
+> **실행 방법**: `python attack.py -s [시나리오번호]`  
 > **대상**: DVWA (Damn Vulnerable Web Application) — ModSecurity WAF 경유
 
 각 시나리오는 **[단계 1] 침투** → **[단계 2] 침투 후 공격** 의 2단계 구조로 구성됩니다.
@@ -23,7 +23,7 @@
 ## 시나리오 11: SQL Injection 침투 → 크리덴셜 탈취 → 시스템 침투
 
 ```
-python main.py -s 11
+python attack.py -s 11
 ```
 
 | 항목 | 내용 |
@@ -101,7 +101,7 @@ graph LR
 ## 시나리오 12: Command Injection 침투 → 권한 상승 시도
 
 ```
-python main.py -s 12
+python attack.py -s 12
 ```
 
 | 항목 | 내용 |
@@ -184,7 +184,7 @@ SetUID 비트가 설정된 실행 파일을 검색합니다. `/usr/bin/nmap`, `/
 ## 시나리오 13: File Upload 침투 → 내부 정찰 및 횡적 이동
 
 ```
-python main.py -s 13
+python attack.py -s 13
 ```
 
 | 항목 | 내용 |
@@ -271,7 +271,7 @@ graph LR
 ## 시나리오 14: Brute Force 침투 → 백도어 설치 및 지속성 확보
 
 ```
-python main.py -s 14
+python attack.py -s 14
 ```
 
 | 항목 | 내용 |
@@ -369,7 +369,7 @@ GET /dvwa/hackable/uploads/.htaccess.php?q=echo+BACKDOOR_ALIVE
 ## 시나리오 15: Stored XSS 침투 → 세션 하이재킹 → 데이터 유출
 
 ```
-python main.py -s 15
+python attack.py -s 15
 ```
 
 | 항목 | 내용 |
@@ -469,11 +469,11 @@ docker compose ps
 ### 개별 실행
 
 ```bash
-python main.py -s 11  # SQLi → 크리덴셜 탈취 → 시스템 침투
-python main.py -s 12  # CMDi → 권한 상승
-python main.py -s 13  # File Upload → 횡적 이동
-python main.py -s 14  # Brute Force → 지속성 확보
-python main.py -s 15  # XSS → 세션 하이재킹 → 데이터 유출
+python attack.py -s 11  # SQLi → 크리덴셜 탈취 → 시스템 침투
+python attack.py -s 12  # CMDi → 권한 상승
+python attack.py -s 13  # File Upload → 횡적 이동
+python attack.py -s 14  # Brute Force → 지속성 확보
+python attack.py -s 15  # XSS → 세션 하이재킹 → 데이터 유출
 ```
 
 ### 전체 순차 실행
@@ -481,7 +481,7 @@ python main.py -s 15  # XSS → 세션 하이재킹 → 데이터 유출
 ```bash
 for i in $(seq 11 15); do
     echo "========== 시나리오 $i 실행 =========="
-    python main.py -s $i
+    python attack.py -s $i
     echo ""
     sleep 2
 done
