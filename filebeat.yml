@@ -1,33 +1,12 @@
 filebeat.inputs:
-  # WAF (ModSecurity) 감사 로그
+  # DVWA Apache 웹 접속 로그
   - type: log
     enabled: true
     paths:
-      - /var/log/modsec/audit.log
+      - /var/log/dvwa/access.log
+      - /var/log/dvwa/error.log
     fields:
-      service: modsecurity-waf
-    multiline.pattern: '^--[a-fA-F0-9]{8}-[A-Z]--$'
-    multiline.negate: true
-    multiline.match: after
-
-  # Metasploitable 2 시스템 로그
-  - type: log
-    enabled: true
-    paths:
-      - /var/log/msf/syslog
-      - /var/log/msf/auth.log
-      - /var/log/msf/daemon.log
-    fields:
-      service: metasploitable2
-
-  # Metasploitable 2 Apache 웹 접속 로그 (DVWA 요청 포함)
-  - type: log
-    enabled: true
-    paths:
-      - /var/log/msf/apache2/access.log
-      - /var/log/msf/apache2/error.log
-    fields:
-      service: metasploitable2-apache
+      service: dvwa-apache
 
 output.logstash:
   hosts: [ "logstash:5044" ]

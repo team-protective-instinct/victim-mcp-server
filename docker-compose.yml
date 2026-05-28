@@ -1,39 +1,21 @@
 services:
-  waf:
-    image: owasp/modsecurity-crs:nginx
-    container_name: waf-proxy
+  dvwa:
+    build:
+      context: ./dvwa
+    container_name: victim-dvwa
     ports:
-      - "80:8080"
+      - "8080:80"
     environment:
-      - BACKEND=http://metasploitable:80
-      - PROXY_PRESERVE_HOST=on
-      - MODSEC_RULE_ENGINE=DetectionOnly
-      - MODSEC_AUDIT_ENGINE=On
-      - MODSEC_AUDIT_LOG_TYPE=Serial
-      - MODSEC_AUDIT_LOG=/var/log/modsecurity/audit.log
+      - DB_SERVER=127.0.0.1
+      - DB_DATABASE=dvwa
+      - DB_USER=dvwa
+      - DB_PASSWORD=dvwa
+      - DB_PORT=3306
+      - DEFAULT_SECURITY_LEVEL=low
+      - DISABLE_AUTHENTICATION=false
     volumes:
-      - waf-logs:/var/log/modsecurity # 네임드 볼륨 사용
-    networks:
-      - victim-net
-
-  metasploitable:
-    image: tleemcjr/metasploitable2:latest
-    container_name: victim-msf2
-    ports:
-      - "21:21"
-      - "22:22"
-      - "139:139"
-      - "445:445"
-      - "3632:3632"
-      - "6200:6200"
-      - "6667:6667"
-      - "8180:8180"
-    command: >
-      sh -c "/bin/services.sh && /etc/init.d/apache2 start && bash"
-    tty: true
-    stdin_open: true
-    volumes:
-      - msf-data-logs:/var/log # 네임드 볼륨 사용! (덮어씌우지 않음)
+      - dvwa-logs:/var/log/apache2
+      - dvwa-internal-db-data:/var/lib/mysql
     networks:
       - victim-net
 
@@ -43,19 +25,16 @@ services:
     user: root
     volumes:
       - ./filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
-      - waf-logs:/var/log/modsec:ro       # WAF 네임드 볼륨 연결
-      - msf-data-logs:/var/log/msf:ro     # MSF 네임드 볼륨 연결
+      - dvwa-logs:/var/log/dvwa:ro        # DVWA Apache 로그 연결
     depends_on:
-      - waf
-      - metasploitable
+      - dvwa
     networks:
       - victim-net
       - elk
 
-# 도커에게 "이 볼륨들은 네가 알아서 잘 보존해줘" 라고 선언
 volumes:
-  waf-logs:
-  msf-data-logs:
+  dvwa-logs:
+  dvwa-internal-db-data:
 
 networks:
   victim-net:
