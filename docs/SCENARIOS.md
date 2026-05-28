@@ -2,7 +2,7 @@
 
 > **목적**: DVWA 침투 이후 실제 공격자가 수행하는 후속 공격(Post-Exploitation)까지 연결한 현실적 공격 시뮬레이션  
 > **실행 방법**: `python attack.py -s [시나리오번호]`  
-> **대상**: DVWA (Damn Vulnerable Web Application) — ModSecurity WAF 경유
+> **대상**: DVWA (Damn Vulnerable Web Application)
 
 각 시나리오는 **[단계 1] 침투** → **[단계 2] 침투 후 공격** 의 2단계 구조로 구성됩니다.
 
@@ -12,18 +12,18 @@
 
 | 번호 | 시나리오명 | 침투 기법 | 침투 후 공격 |
 |------|-----------|----------|-------------|
-| 11 | SQLi → 시스템 침투 | UNION-based SQL Injection | 해시 크래킹 → SSH 접근 → 시스템 열거 |
-| 12 | CMDi → 권한 상승 | OS Command Injection | SUID 탐색 → sudo 확인 → 커널 exploit 조사 |
-| 13 | Upload → 횡적 이동 | PHP 웹 쉘 업로드 | 네트워크 정찰 → 포트 스캔 → DB 크리덴셜 추출 |
-| 14 | Brute Force → 지속성 확보 | 사전 공격 (Dictionary Attack) | 은닉 백도어 → 크론잡 → 계정 추가 |
-| 15 | Stored XSS → 데이터 유출 | Stored Cross-Site Scripting | 세션 하이재킹 → SQLi 체인 → 파일 유출 |
+| 6 | SQLi → 시스템 침투 | UNION-based SQL Injection | 해시 크래킹 → SSH 접근 → 시스템 열거 |
+| 7 | CMDi → 권한 상승 | OS Command Injection | SUID 탐색 → sudo 확인 → 커널 exploit 조사 |
+| 8 | Upload → 횡적 이동 | PHP 웹 쉘 업로드 | 네트워크 정찰 → 포트 스캔 → DB 크리덴셜 추출 |
+| 9 | Brute Force → 지속성 확보 | 사전 공격 (Dictionary Attack) | 은닉 백도어 → 크론잡 → 계정 추가 |
+| 10 | Stored XSS → 데이터 유출 | Stored Cross-Site Scripting | 세션 하이재킹 → SQLi 체인 → 파일 유출 |
 
 ---
 
-## 시나리오 11: SQL Injection 침투 → 크리덴셜 탈취 → 시스템 침투
+## 시나리오 6: SQL Injection 침투 → 크리덴셜 탈취 → 시스템 침투
 
 ```
-python attack.py -s 11
+python attack.py -s 6
 ```
 
 | 항목 | 내용 |
@@ -98,10 +98,10 @@ graph LR
 
 ---
 
-## 시나리오 12: Command Injection 침투 → 권한 상승 시도
+## 시나리오 7: Command Injection 침투 → 권한 상승 시도
 
 ```
-python attack.py -s 12
+python attack.py -s 7
 ```
 
 | 항목 | 내용 |
@@ -181,10 +181,10 @@ SetUID 비트가 설정된 실행 파일을 검색합니다. `/usr/bin/nmap`, `/
 
 ---
 
-## 시나리오 13: File Upload 침투 → 내부 정찰 및 횡적 이동
+## 시나리오 8: File Upload 침투 → 내부 정찰 및 횡적 이동
 
 ```
-python attack.py -s 13
+python attack.py -s 8
 ```
 
 | 항목 | 내용 |
@@ -259,7 +259,7 @@ graph LR
 
 | 순서 | 행위 | 명령어 | 목적 |
 |------|------|--------|------|
-| 1 | 인접 호스트 ping | `ping -c 1 -W 1 metasploitable2` | 내부 호스트 생존 확인 |
+| 1 | 인접 호스트 ping | `ping -c 1 -W 1 127.0.0.1` | 내부 호스트 생존 확인 |
 | 2 | 내부 포트 스캔 | 포트 21, 22, 80, 3306, 5432, 8080 스캔 | 내부 서비스 발견 |
 | 3 | **DB 크리덴셜 추출** | `cat config.inc.php \| grep 'db_'` | DVWA 설정 파일에서 DB 접속 정보 탈취 |
 
@@ -268,10 +268,10 @@ graph LR
 
 ---
 
-## 시나리오 14: Brute Force 침투 → 백도어 설치 및 지속성 확보
+## 시나리오 9: Brute Force 침투 → 백도어 설치 및 지속성 확보
 
 ```
-python attack.py -s 14
+python attack.py -s 9
 ```
 
 | 항목 | 내용 |
@@ -354,7 +354,7 @@ graph LR
 | 3 | `127.0.0.1; cat /etc/passwd \| tail -3` | 계정 추가 결과 확인 |
 
 > [!NOTE]
-> `www-data` 권한으로는 `useradd`가 `Permission denied`로 실패할 수 있습니다. 이 경우 권한 상승(시나리오 12)이 선행되어야 합니다.
+> `www-data` 권한으로는 `useradd`가 `Permission denied`로 실패할 수 있습니다. 이 경우 권한 상승(시나리오 7)이 선행되어야 합니다.
 
 **백도어 생존 확인**
 
@@ -366,10 +366,10 @@ GET /dvwa/hackable/uploads/.htaccess.php?q=echo+BACKDOOR_ALIVE
 
 ---
 
-## 시나리오 15: Stored XSS 침투 → 세션 하이재킹 → 데이터 유출
+## 시나리오 10: Stored XSS 침투 → 세션 하이재킹 → 데이터 유출
 
 ```
-python attack.py -s 15
+python attack.py -s 10
 ```
 
 | 항목 | 내용 |
@@ -469,17 +469,17 @@ docker compose ps
 ### 개별 실행
 
 ```bash
-python attack.py -s 11  # SQLi → 크리덴셜 탈취 → 시스템 침투
-python attack.py -s 12  # CMDi → 권한 상승
-python attack.py -s 13  # File Upload → 횡적 이동
-python attack.py -s 14  # Brute Force → 지속성 확보
-python attack.py -s 15  # XSS → 세션 하이재킹 → 데이터 유출
+python attack.py -s 6   # SQLi → 크리덴셜 탈취 → 시스템 침투
+python attack.py -s 7   # CMDi → 권한 상승
+python attack.py -s 8   # File Upload → 횡적 이동
+python attack.py -s 9   # Brute Force → 지속성 확보
+python attack.py -s 10  # XSS → 세션 하이재킹 → 데이터 유출
 ```
 
 ### 전체 순차 실행
 
 ```bash
-for i in $(seq 11 15); do
+for i in $(seq 6 10); do
     echo "========== 시나리오 $i 실행 =========="
     python attack.py -s $i
     echo ""
@@ -489,6 +489,5 @@ done
 
 ### 참고 사항
 
-- 시나리오 11~15는 실행 시 자동으로 DVWA에 로그인하고 보안 레벨을 **Low**로 설정합니다.
-- 모든 공격 트래픽은 ModSecurity WAF를 경유하므로, **WAF 로그가 함께 생성**됩니다.
+- 시나리오 6~10은 실행 시 자동으로 DVWA에 로그인하고 보안 레벨을 **Low**로 설정합니다.
 - 생성된 로그는 Filebeat → Elasticsearch → ElastAlert2 → AI Agent 파이프라인을 통해 탐지됩니다.

