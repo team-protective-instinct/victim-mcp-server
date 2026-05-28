@@ -1,6 +1,6 @@
-# Capstone Victim System (DVWA & Metasploitable2 Attack Script)
+# Capstone Victim System (DVWA Attack Script)
 
-이 프로젝트는 캡스톤 디자인을 위한 희생양(Victim) 시스템으로, 취약점 실습 웹 애플리케이션인 DVWA(Damn Vulnerable Web App), Metasploitable2, 그리고 통합 자동화 공격 스크립트(`attack.py`)로 구성되어 있습니다. 발생하는 로그는 Filebeat를 통해 수집되어 외부 ELK 스택(설정된 인프라)으로 전송됩니다.
+이 프로젝트는 캡스톤 디자인을 위한 희생양(Victim) 시스템으로, 취약점 실습 웹 애플리케이션인 DVWA(Damn Vulnerable Web App)와 통합 자동화 공격 스크립트(`attack.py`)로 구성되어 있습니다. 발생하는 로그는 Filebeat를 통해 수집되어 외부 ELK 스택(설정된 인프라)으로 전송됩니다.
 
 ## 🚀 시작하기 전 필수 사항 (Prerequisites)
 
@@ -39,7 +39,7 @@ docker-compose up -d
 
 ## ⚔️ 공격 시나리오 스크립트 확인 및 실행
 
-내장된 `attack.py`는 DVWA/WAF 경유 웹 취약점 시나리오와 Metasploitable2 서비스 취약점 시나리오를 함께 제공합니다.
+내장된 `attack.py`는 DVWA 웹 취약점 시나리오를 제공합니다.
 
 ### 사용법
 `uv` 가상환경 내에서 아래와 같은 명령어로 실행할 수 있습니다.
@@ -52,30 +52,17 @@ uv run attack.py -s [DVWA_시나리오번호]
 uv run attack.py -s 1
 ```
 
-Metasploitable2 시나리오는 번호를 지정하거나 메뉴에서 선택합니다.
-
-```sh
-uv run attack.py -m [Metasploitable2_시나리오번호]
-uv run attack.py
-```
-
 ### DVWA 지원 공격 시나리오
 1. **무차별 대입 공격 (Brute Force)**: 관리자 비밀번호를 유추하기 위한 패스워드 사전 대입 공격
 2. **명령어 삽입 (Command Injection)**: OS 명령어를 인젝션하여 서버 내부 정보(`/etc/passwd` 등) 열람
 3. **SQL 인젝션 (Error Based)**: 에러 기반 SQL 구문 삽입을 통한 데이터베이스 유출 시도
 4. **파일 업로드 (File Upload)**: PHP 웹 쉘 등 악성 파일을 업로드하고 시스템 원격 제어 목적의 실행
 5. **반사형 XSS (Reflected XSS)**: 파라미터 값에 임의의 자바스크립트를 삽입하여 브라우저에서 스크립트 실행
-11. **SQL Injection 침투 → 크리덴셜 탈취 → 시스템 침투**
-12. **Command Injection 침투 → 권한 상승 시도**
-13. **File Upload 침투 → 내부 정찰 및 횡적 이동**
-14. **Brute Force 침투 → 백도어 설치 및 지속성 확보**
-15. **Stored XSS 침투 → 세션 하이재킹 → 데이터 유출**
-
-### Metasploitable2 지원 공격 시나리오
-
-`attack.py -m`은 vsftpd, Samba, SSH, Tomcat, UnrealIRCd 기반 기본 시나리오와 침투 후 공격 체인, 일괄 실행 메뉴를 제공합니다.
-
----
+6. **SQL Injection 침투 → 크리덴셜 탈취 → 시스템 침투**
+7. **Command Injection 침투 → 권한 상승 시도**
+8. **File Upload 침투 → 내부 정찰 및 횡적 이동**
+9. **Brute Force 침투 → 백도어 설치 및 지속성 확보**
+10. **Stored XSS 침투 → 세션 하이재킹 → 데이터 유출**
 
 ## 🛑 종료 및 정리
 
